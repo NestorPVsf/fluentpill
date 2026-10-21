@@ -1,0 +1,11 @@
+PyQt6>=6.7.0
+sounddevice>=0.4.6
+numpy>=1.26.0
+pynput>=1.7.6
+groq>=0.4.0
+python-dotenv>=1.0.0
+flask>=3.0.0
+pyobjc-framework-Cocoa>=10.0 ; sys_platform == 'darwin'
+pyperclip>=1.8.2 ; sys_platform == 'win32'
+openai>=1.50.0
+google-genai>=1.0.0

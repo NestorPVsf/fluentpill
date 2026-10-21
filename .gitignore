@@ -1,0 +1,23 @@
+.env
+.env.local
+.env.*.local
+transcriptions.db
+corrections_backup_*.json
+*.orig
+__pycache__/
+*.pyc
+.DS_Store
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.claude/
+
+# Syncthing conflict copies (e.g. transcriptions.sync-conflict-*.db)
+*.sync-conflict-*
+
+# Knowledge graph artifacts (matriz/graphify) — regenerated from the code,
+# 2.5MB that would churn on every commit. The .gitattributes merge driver
+# for graph.json is tracked, same as in the other projects.
+graphify-out/

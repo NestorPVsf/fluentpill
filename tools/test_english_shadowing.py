@@ -38,6 +38,13 @@ assert S("I want to go home", "i want to go home")["score"] == 100
 assert S("I want to go home.", "I WANT, to go home!")["score"] == 100, "case and punctuation ignored"
 r = S("I would like a coffee", "I want like a coffee")
 assert 60 <= r["score"] < 100 and r["changed"] == [("want", "would")] and not r["missing"], r
+# contractions: "I'd" == "I would"; dropping the 'd reads as a missing word, never "dijiste i por i'd"
+assert S("Honestly, I'd rather decide", "honestly I would rather decide")["score"] == 100
+assert S("I don't know, it won't work", "I do not know it will not work")["score"] == 100
+r = S("Honestly, I'd rather decide", "honestly I rather decide")
+assert r["missing"] == ["would"] and not r["changed"], r
+assert "i por" not in shadowing.feedback(r, "honestly I rather decide")
+assert shadowing.words("It's John's") == ["it's", "john's"], "'s left alone"
 r = S("I would really like a coffee", "I like a coffee")
 assert r["missing"] == ["would", "really"] and r["score"] < 85, r
 assert S("one two three", "")["score"] == 0

@@ -12,9 +12,25 @@ AMBER_FROM = 60
 MAX_NOTES = 3                      # words listed in the feedback line
 
 
+# Contractions expand on both sides, so "I'd" vs "I would" matches and "I" vs "I'd" reads "faltó: would".
+# 's stays as is (is/has/possessive is ambiguous).
+_IRREGULAR = {"won't": "will not", "can't": "can not", "cannot": "can not", "shan't": "shall not", "ain't": "is not"}
+_SUFFIX = [("n't", " not"), ("'d", " would"), ("'ll", " will"), ("'re", " are"), ("'ve", " have"), ("'m", " am")]
+
+
+def _expand(w: str) -> str:
+    if w in _IRREGULAR:
+        return _IRREGULAR[w]
+    for suf, full in _SUFFIX:
+        if w.endswith(suf) and len(w) > len(suf):
+            return w[: -len(suf)] + full
+    return w
+
+
 def words(text: str) -> list:
     t = (text or "").lower().replace("’", "'").replace("‘", "'")
-    return re.sub(r"[^\w\s']", " ", t).replace("_", " ").split()
+    t = re.sub(r"[^\w\s']", " ", t).replace("_", " ")
+    return " ".join(_expand(w) for w in t.split()).split()
 
 
 def score(target: str, heard: str) -> dict:

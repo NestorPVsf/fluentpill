@@ -48,7 +48,7 @@ def explain(original: str, corrected: str, corrections, upgrade: str = "") -> st
     system = _PROMPT_PATH.read_text(encoding="utf-8")
     timeout = config.CLEANER_TIMEOUT_SECONDS * 4
     chain = [
-        (config.OPENAI_API_KEY, config.OPENAI_CLEANER_MODEL_LONG, _call_openai),
+        (config.OPENAI_API_KEY, config.ENGLISH_MODEL, _call_openai),
         (config.GROQ_API_KEY, config.GROQ_CLEANER_MODEL, _call_groq),
     ]
     if not any(k for k, _, _ in chain):

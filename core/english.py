@@ -142,13 +142,13 @@ def correct_english(text: str) -> dict:
         return fallback
     try:
         from config import (
-            OPENAI_API_KEY, OPENAI_CLEANER_MODEL_LONG,
+            OPENAI_API_KEY, ENGLISH_MODEL,
             GROQ_API_KEY, GROQ_CLEANER_MODEL, CLEANER_TIMEOUT_SECONDS,
         )
         system = _system_prompt()
         timeout = CLEANER_TIMEOUT_SECONDS * 2
         chain = [
-            (OPENAI_API_KEY, OPENAI_CLEANER_MODEL_LONG, _call_openai),
+            (OPENAI_API_KEY, ENGLISH_MODEL, _call_openai),
             (GROQ_API_KEY, GROQ_CLEANER_MODEL, _call_groq),
         ]
         for key, model, call in chain:

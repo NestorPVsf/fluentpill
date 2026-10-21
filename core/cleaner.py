@@ -80,7 +80,7 @@ _openai_rejected_params: dict[str, set[str]] = {}
 # output (small models like Gemini Flash-Lite sometimes ignore the
 # system-prompt rule about treating them as metadata).
 _METADATA_BLOCK_RE = re.compile(
-    r"<(USER_VOCAB|APP_CONTEXT)>.*?</\1>",
+    r"<(USER_VOCAB|APP_CONTEXT|AVISO_EDITOR)>.*?</\1>",
     re.DOTALL | re.IGNORECASE,
 )
 
@@ -89,7 +89,7 @@ def _strip_metadata_echo(cleaned: str) -> str:
     """Remove any <USER_VOCAB>/<APP_CONTEXT> block the LLM may have echoed,
     plus any leading whitespace left behind. NEVER raises."""
     low = cleaned.lower()
-    if "<user_vocab>" not in low and "<app_context>" not in low:
+    if "<user_vocab>" not in low and "<app_context>" not in low and "<aviso_editor>" not in low:
         return cleaned
     stripped = _METADATA_BLOCK_RE.sub("", cleaned).strip()
     if stripped != cleaned:
@@ -204,6 +204,140 @@ def _accept_or_reject(
         )
         return input_text, False
     return polished, True
+
+
+# ---------------------------------------------------------------------------
+# Length guard (anti-summary)
+# ---------------------------------------------------------------------------
+# The cleaner must CLEAN, not SUMMARIZE. The LLM sometimes still condenses a
+# long dictation, dropping doubts, reasons or "y también X" requests. Spanish
+# filler is a short, closed list, so the expected clean length can be computed
+# in code: raw minus filler. If the output is well below that, it summarized.
+GUARD_MIN_WORDS = 25        # same boundary as the prompt's short/long rule
+GUARD_MIN_RATIO = 0.75      # output / (raw without filler), in word chars (0.80 = same precision, fires twice as often: see tools/eval)
+GUARD_FALLBACK_RATIO = 0.60  # below this after the retry: it is a summary, use the light cleanup
+GUARD_MIN_RATIO_CORRECTED = 0.60  # dictations with "perdón / mejor dicho" shrink on purpose
+
+# Pure filler only: nothing here can carry information. Deliberately NOT in the
+# list: "creo que", "no sé si", "quizás", "también", "porque" (doubts/reasons).
+_FILLER_RE = re.compile(
+    r"(?<!\w)(?:"
+    r"eh+m*|mm+|hmm+|ajá|"
+    r"o sea|pues nada|pero bueno|a ver|pues mira|mira|en plan|me explico|"
+    r"¿vale\?|¿sabes\?|¿no\?|¿verdad\?|¿ok\?|"
+    r"vale|bueno|pues|vaya"
+    r")(?!\w)[\s,;.]*",
+    re.IGNORECASE,
+)
+# Stricter version for the deterministic fallback, which REWRITES text: only an
+# interjection standing alone (followed by punctuation) goes, so "mira este
+# fichero" or "pues no hay" keep their verb/cause. Tag questions go anywhere.
+_TAG_QUESTION_RE = re.compile(r"\s*,?\s*¿(?:vale|sabes|no|verdad|ok)\?", re.IGNORECASE)
+_FILLER_STRICT_RE = re.compile(
+    r"(?<!\w)(?:"
+    r"(?:eh+m*|mm+|hmm+|ajá|o sea|pues nada|pero bueno|a ver|pues mira|mira|en plan|me explico|vale|bueno|pues|vaya)"
+    r"(?=\s*[,.;?!])"
+    r")[\s,;.]*",
+    re.IGNORECASE,
+)
+# Immediate stutter of function words only ("yo yo creo", "que que"): "muy, muy
+# rápido" or "no, no" are emphasis and stay.
+_STUTTER_RE = re.compile(r"\b(yo|el|la|los|las|un|una|que|de|en|y|a|se|lo|es|me|te)(?:\s+\1\b)+", re.IGNORECASE)
+
+
+def _word_chars(text: str) -> int:
+    return len(re.findall(r"\w", text, flags=re.UNICODE))
+
+
+def _light_clean(text: str) -> str:
+    """Deterministic minimal cleanup: filler words and immediate stutters only.
+    Used as the fallback when the LLM keeps summarizing — it can lose nothing."""
+    out = _STUTTER_RE.sub(r"\1", text)
+    # A tag question ("..., ¿vale?") closes its sentence: turn it into a full stop.
+    out = _TAG_QUESTION_RE.sub(". ", out)
+    out = _FILLER_STRICT_RE.sub("", out)
+    out = re.sub(r"[,;]\s*\.(?!\.)", ".", out)
+    out = re.sub(r"(?<!\.)\.\s*\.(?!\.)", ".", out)
+    out = re.sub(r"\s+([,.;:!?])", r"\1", out)
+    out = re.sub(r"([,;])\s*([.!?])", r"\2", out)
+    out = re.sub(r"[ \t]{2,}", " ", out).strip(" ,;")
+    # Capitalise the first letter and any letter that starts a sentence
+    out = re.sub(
+        r"(^|[.!?¿¡]\s+)([a-záéíóúñ])",
+        lambda m: m.group(1) + m.group(2).upper(),
+        out,
+    )
+    return out or text
+
+
+def _expected_clean_chars(raw: str) -> int:
+    return _word_chars(_FILLER_RE.sub("", _STUTTER_RE.sub(r"\1", raw)))
+
+
+_RETRY_NOTICE = (
+    "<AVISO_EDITOR>\n"
+    "Tu primer intento quedó demasiado corto: omitía información que el hablante sí dijo. "
+    "Repite la limpieza conservando TODAS las frases con información: datos y cifras, dudas "
+    "('no sé si', 'creo que' siguen siendo dudas), razones ('porque', 'por lo que'), incisos, "
+    "peticiones y lo que añade con 'y también'. Solo quita muletillas, repeticiones literales "
+    "y arranques fallidos que él mismo corrige. Si cambió de decisión, vale la última. No resumas; el resultado puede quedar menos "
+    "elegante, pero completo.\n"
+    "</AVISO_EDITOR>"
+)
+
+
+def _apply_length_guard(
+    raw: str,
+    polished: str,
+    retry,
+    *,
+    has_correction: bool = False,
+    is_translation: bool = False,
+) -> tuple[str, dict]:
+    """Detect a summarized output, retry once, then fall back to a light cleanup.
+
+    `retry(extra_notice) -> str | None` re-runs the SAME provider/model with the
+    notice appended to the user message and returns the post-processed text.
+    Returns (text, info); info keys: ratio, retried, fallback (bools/float) for
+    logging and for the eval harness to count how often the guard fires.
+    """
+    info = {"ratio": None, "retried": False, "fallback": False}
+    if is_translation or len(raw.split()) < GUARD_MIN_WORDS:
+        return polished, info
+    expected = max(_expected_clean_chars(raw), 1)
+    threshold = GUARD_MIN_RATIO_CORRECTED if has_correction else GUARD_MIN_RATIO
+    ratio = _word_chars(polished) / expected
+    info["ratio"] = round(ratio, 3)
+    if ratio >= threshold:
+        return polished, info
+
+    info["retried"] = True
+    print(f"[cleaner] length-guard: output {ratio:.2f} of expected (<{threshold:.2f}) — retrying once")
+    second = None
+    try:
+        second = retry(_RETRY_NOTICE)
+    except Exception as e:  # the guard must never block the paste
+        print(f"[cleaner] length-guard retry FAILED: {e}")
+    best, best_ratio = polished, ratio
+    if second:
+        r2 = _word_chars(second) / expected
+        info["ratio2"] = round(r2, 3)
+        if r2 >= threshold:
+            print(f"[cleaner] length-guard: retry accepted ({r2:.2f})")
+            return second, info
+        if r2 > ratio:
+            best, best_ratio = second, r2
+    # Still short. A moderately short output is often legitimate (the speaker changed
+    # their mind without a marker: "sí, misión facturación... no, mejor solo facturación"),
+    # and the light fallback would bring BOTH versions back. Only a clear summary
+    # (below GUARD_FALLBACK_RATIO) is replaced by the deterministic cleanup.
+    if has_correction or best_ratio >= GUARD_FALLBACK_RATIO:
+        info["kept_short"] = True
+        print(f"[cleaner] length-guard: still short ({best_ratio:.2f}) — keeping the longer LLM output")
+        return best, info
+    info["fallback"] = True
+    print(f"[cleaner] length-guard: still very short ({best_ratio:.2f}) after retry — light cleanup (fillers/stutters only)")
+    return _light_clean(raw), info
 
 
 def _build_user_message(
@@ -543,7 +677,29 @@ def clean_dictation(
             timeout=timeout,
         )
         if result is not None:
-            return _accept_or_reject(text, result, user_vocab)
+            polished, accepted = _accept_or_reject(text, result, user_vocab)
+            if not accepted:
+                return polished, accepted
+
+            def _retry(notice: str, _call=call, _key=api_key, _model=model) -> str | None:
+                again = _call(
+                    user_message=user_message + "\n\n" + notice,
+                    api_key=_key,
+                    model=_model,
+                    max_tokens=max_tokens,
+                    # Half the budget: a stuck retry must not double the wait before paste.
+                    timeout=max(timeout / 2, 8.0),
+                )
+                return _post_process_llm_output(again) if again else None
+
+            polished, _info = _apply_length_guard(
+                text,
+                polished,
+                _retry,
+                has_correction=has_correction,
+                is_translation=bool(_TRANSLATE_DIRECTIVE_RE.match(text)),
+            )
+            return polished, True
 
     # --- All providers failed or no keys configured ---
     print("[cleaner] provider=bypass (no keys or all failed) — returning raw text")

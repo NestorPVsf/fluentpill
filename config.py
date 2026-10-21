@@ -212,7 +212,9 @@ GEMINI_CLEANER_MODEL = os.getenv("GEMINI_CLEANER_MODEL", "gemini-3.1-flash-lite"
 GEMINI_CLEANER_MODEL_LONG = os.getenv("GEMINI_CLEANER_MODEL_LONG", "gemini-3.5-flash")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_CLEANER_MODEL = os.getenv("OPENAI_CLEANER_MODEL", "gpt-5.6-luna")
-OPENAI_CLEANER_MODEL_LONG = os.getenv("OPENAI_CLEANER_MODEL_LONG", "gpt-5.6-terra")
+OPENAI_CLEANER_MODEL_LONG = os.getenv("OPENAI_CLEANER_MODEL_LONG", "gpt-6.1-sol")
+# English mode (corrections + Explicame) stays on terra: gpt-6.1-sol leaves "upgrade" empty and takes ~9 s (2026-10-21).
+ENGLISH_MODEL = os.getenv("ENGLISH_MODEL", "gpt-5.6-terra")
 GROQ_CLEANER_MODEL = os.getenv("GROQ_CLEANER_MODEL", "openai/gpt-oss-120b")
 
 # English corrections panel: "listen" buttons (core/english_tts.py). Native speech

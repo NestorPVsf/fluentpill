@@ -14,7 +14,7 @@ import uuid
 import wave
 from pathlib import Path
 
-from core.lifecycle import howl_appdata_dir
+from core.lifecycle import appdata_dir
 
 SAMPLE_RATE = 24000          # Gemini speech output: 24 kHz, 16-bit, mono PCM
 MAX_CHARS = 1000
@@ -39,7 +39,7 @@ def _settings() -> dict:
 
 
 def cache_dir() -> Path:
-    return howl_appdata_dir() / "tts"
+    return appdata_dir() / "tts"
 
 
 def cache_key(text: str, model: str, voice: str, style: str = "") -> str:

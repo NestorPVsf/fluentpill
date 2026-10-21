@@ -1,4 +1,4 @@
-"""System tray icon with context menu for fluentpill (formerly Howl)."""
+"""System tray icon with context menu for fluentpill (formerly fluentpill)."""
 
 import webbrowser
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu
@@ -138,11 +138,11 @@ class TrayIcon(QSystemTrayIcon):
 
     def set_watchdog_stale(self, is_stale: bool) -> None:
         """Reflect watchdog health in the tray tooltip — the tray icon is
-        Howl's permanent on-screen presence (tooltip/click state survive
+        fluentpill's permanent on-screen presence (tooltip/click state survive
         the pill hiding itself at rest), so it's where a
         "nobody is watching the watchdog" warning has to surface; a
-        howl.log line nobody reads is not an alert on its own. Called from
-        main.py's existing heartbeat timer (HowlApp._check_watchdog_health),
+        fluentpill.log line nobody reads is not an alert on its own. Called from
+        main.py's existing heartbeat timer (FluentpillApp._check_watchdog_health),
         never a new timer of its own. No-op when the value doesn't change,
         so repeated heartbeat ticks don't keep re-setting the same tooltip.
         """
@@ -176,8 +176,8 @@ class TrayIcon(QSystemTrayIcon):
         print(f"[tray] Limpieza con IA {state_str}")
 
     def _quit(self):
-        # User-initiated stop — mark it so howl-watchdog.ps1 doesn't
-        # relaunch Howl a few minutes later (mirrors what howl-stop.bat does
+        # User-initiated stop — mark it so fluentpill-watchdog.ps1 doesn't
+        # relaunch fluentpill a few minutes later (mirrors what fluentpill-stop.bat does
         # for the command-line stop path), and record the shutdown reason so
         # main.py's atexit line says "tray" instead of "unknown". Never
         # raises.

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Registers (or re-registers) the "HowlWatchdog" scheduled task. Called by
+    Registers (or re-registers) the "fluentpillWatchdog" scheduled task. Called by
     install-watchdog.bat -- not meant to be run standalone, though it is
     safe to do so (idempotent, -Force overwrites any prior task).
 
@@ -51,16 +51,22 @@
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = $PSScriptRoot
-$ps1Path = Join-Path $repoRoot 'howl-watchdog.ps1'
-$vbsPath = Join-Path $repoRoot 'howl-watchdog-hidden.vbs'
-$taskName = 'HowlWatchdog'
+$ps1Path = Join-Path $repoRoot 'fluentpill-watchdog.ps1'
+$vbsPath = Join-Path $repoRoot 'fluentpill-watchdog-hidden.vbs'
+$taskName = 'fluentpillWatchdog'
 
-# Same %LOCALAPPDATA%\Howl path howl-watchdog.ps1 and main.py's
+# Same %LOCALAPPDATA%\fluentpill path fluentpill-watchdog.ps1 and main.py's
 # core/lifecycle.py use for the watchdog-alive marker -- duplicated here
 # rather than imported since this isn't Python and doesn't dot-source that
 # script (see the marker-touch block near the bottom of this file).
+# Data folder: fluentpill. If it does not exist yet but the pre-rename Howl
+# folder does (app not started since the rename), use the old one: creating
+# an empty fluentpill folder here would make main.py skip its one-time
+# Howl -> fluentpill migration (both folders existing = nothing is touched).
 $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
-$howlDir = Join-Path $localAppData 'Howl'
+$appDir = Join-Path $localAppData 'fluentpill'
+$legacyDir = Join-Path $localAppData 'Howl'
+if (-not (Test-Path $appDir) -and (Test-Path $legacyDir)) { $appDir = $legacyDir }
 
 if (-not (Test-Path $ps1Path)) {
     Write-Output "ERROR: no se encuentra $ps1Path"
@@ -70,6 +76,9 @@ if (-not (Test-Path $vbsPath)) {
     Write-Output "ERROR: no se encuentra $vbsPath"
     exit 1
 }
+
+# Drop the pre-rename task first (no error if it was never there).
+Unregister-ScheduledTask -TaskName 'HowlWatchdog' -Confirm:$false -ErrorAction SilentlyContinue
 
 try {
     # Argument built with [char]34 rather than a literal embedded quote --
@@ -137,18 +146,18 @@ if (-not $ok) {
 # this, a fresh install would sit in the "never existed" state for up to 5
 # minutes until the task's first tick -- harmless timing-wise (still
 # silence, not a false warning) but this makes a freshly-installed watchdog
-# immediately visible to Howl instead of waiting on the first scheduled run.
+# immediately visible to fluentpill instead of waiting on the first scheduled run.
 #
-# This duplicates howl-watchdog.ps1's Update-AliveMarker write logic rather
+# This duplicates fluentpill-watchdog.ps1's Update-AliveMarker write logic rather
 # than dot-sourcing that script, which would also execute its top-level
-# relaunch logic (Howl might not even be running yet at install time) as an
+# relaunch logic (fluentpill might not even be running yet at install time) as an
 # unwanted side effect. Not fatal if it fails -- the scheduled task's first
 # run five minutes from now will create the marker anyway.
 try {
-    if (-not (Test-Path $howlDir)) {
-        New-Item -ItemType Directory -Path $howlDir -Force | Out-Null
+    if (-not (Test-Path $appDir)) {
+        New-Item -ItemType Directory -Path $appDir -Force | Out-Null
     }
-    $aliveMarker = Join-Path $howlDir 'watchdog-alive'
+    $aliveMarker = Join-Path $appDir 'watchdog-alive'
     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllBytes($aliveMarker, $utf8NoBom.GetBytes($timestamp))

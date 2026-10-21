@@ -1,15 +1,15 @@
 """lifecycle.py — startup/shutdown bookkeeping shared by main.py and the tray
 icon.
 
-Owns the on-disk marker howl-watchdog.ps1 reads to tell an intentional stop
-(tray "Salir", howl-stop.bat) apart from a crash or an external kill — see
-howl-watchdog.ps1. The marker's path is duplicated (not imported)
-in Howl.bat, howl-stop.bat and howl-watchdog.ps1 because those aren't Python;
-%LOCALAPPDATA%\\Howl\\stopped-by-user is the one fixed path all of them must
+Owns the on-disk marker fluentpill-watchdog.ps1 reads to tell an intentional stop
+(tray "Salir", fluentpill-stop.bat) apart from a crash or an external kill — see
+fluentpill-watchdog.ps1. The marker's path is duplicated (not imported)
+in fluentpill.bat, fluentpill-stop.bat and fluentpill-watchdog.ps1 because those aren't Python;
+%LOCALAPPDATA%\\fluentpill\\stopped-by-user is the one fixed path all of them must
 agree on.
 
 Every function here is defensive (never raises) — a failure to write/clear
-the marker must not block starting or stopping Howl itself.
+the marker must not block starting or stopping fluentpill itself.
 """
 
 import os
@@ -18,34 +18,74 @@ import time
 from pathlib import Path
 
 
-def howl_appdata_dir() -> Path:
-    """Same per-OS base directory as core/recordings.py's recordings_dir()
-    and main.py's log dir — %LOCALAPPDATA%\\Howl on Windows, ~/.config/Howl
-    elsewhere. Does NOT create the directory; callers that need it to exist
-    create it themselves, so a read-only check (does the marker exist?)
-    never has the side effect of creating the folder.
-    """
+APP_DIR_NAME = "fluentpill"
+LEGACY_APP_DIR_NAME = "Howl"  # pre-rename folder, see migrate_legacy_appdata()
+
+_resolved_dir: Path | None = None
+_migration_note: str | None = None
+
+
+def _appdata_base() -> Path:
     if sys.platform == "win32":
-        base = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
-    else:
-        base = Path.home() / ".config"
-    return base / "Howl"
+        return Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
+    return Path.home() / ".config"
+
+
+def migrate_legacy_appdata(base: Path) -> "tuple[Path, str | None]":
+    """One-time rename of <base>/Howl -> <base>/fluentpill. Returns
+    (directory to use, note for the log or None). Never raises.
+
+    - old exists, new doesn't -> os.replace(); on failure (a locked file)
+      the OLD folder is used for this run and the note says why.
+    - both exist -> nothing is touched, the new one wins.
+    - neither exists -> the new one is created.
+    """
+    new, old = base / APP_DIR_NAME, base / LEGACY_APP_DIR_NAME
+    try:
+        if new.exists():
+            return new, None
+        if old.is_dir():
+            try:
+                os.replace(old, new)
+                return new, f"[lifecycle] migrated {old} -> {new}"
+            except OSError as e:
+                return old, f"[lifecycle] could not rename {old} -> {new} ({e}); using the old folder"
+        new.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        return new, f"[lifecycle] appdata folder setup failed for {new}: {e}"
+    return new, None
+
+
+def appdata_dir() -> Path:
+    """The app's per-OS data folder — %LOCALAPPDATA%\\fluentpill on Windows,
+    ~/.config/fluentpill elsewhere. Shared by main.py's log, recordings,
+    sounds and the TTS cache. The first call per process runs the legacy
+    Howl -> fluentpill migration (cached afterwards); never raises."""
+    global _resolved_dir, _migration_note
+    if _resolved_dir is None:
+        _resolved_dir, _migration_note = migrate_legacy_appdata(_appdata_base())
+    return _resolved_dir
+
+
+def migration_note() -> str | None:
+    """What the migration did on this run (print it once the log is open)."""
+    return _migration_note
 
 
 def stopped_marker_path() -> Path:
-    """The file howl-watchdog.ps1 checks before relaunching a dead Howl.
-    Its presence means the user stopped Howl on purpose — see
+    """The file fluentpill-watchdog.ps1 checks before relaunching a dead fluentpill.
+    Its presence means the user stopped fluentpill on purpose — see
     mark_stopped_by_user() / clear_stopped_marker() below."""
-    return howl_appdata_dir() / "stopped-by-user"
+    return appdata_dir() / "stopped-by-user"
 
 
 def mark_stopped_by_user() -> None:
     """Create the marker — call right before an intentional shutdown (tray
-    "Salir"). howl-stop.bat does the batch equivalent. Never raises: a
-    failure here just means the watchdog might relaunch Howl a bit too
+    "Salir"). fluentpill-stop.bat does the batch equivalent. Never raises: a
+    failure here just means the watchdog might relaunch fluentpill a bit too
     eagerly later, which is the safe direction to fail in."""
     try:
-        d = howl_appdata_dir()
+        d = appdata_dir()
         d.mkdir(parents=True, exist_ok=True)
         stopped_marker_path().touch()
     except OSError as e:
@@ -53,8 +93,8 @@ def mark_stopped_by_user() -> None:
 
 
 def clear_stopped_marker() -> None:
-    """Remove the marker on a normal start (manual, Howl.bat, or Windows
-    autostart) — starting Howl again IS the signal that the user wants it
+    """Remove the marker on a normal start (manual, fluentpill.bat, or Windows
+    autostart) — starting fluentpill again IS the signal that the user wants it
     running, so any earlier intentional stop no longer applies. Never
     raises."""
     try:
@@ -71,7 +111,7 @@ def clear_stopped_marker() -> None:
 # whether to relaunch; this in-memory flag tells the LOG, via main.py's
 # atexit hook, why THIS process is exiting. atexit fires on every orderly
 # interpreter shutdown, including right after sys.excepthook has already
-# printed "HOWL CRASH" for an unhandled exception — so the atexit line must
+# printed "FLUENTPILL CRASH" for an unhandled exception — so the atexit line must
 # not claim "clean exit" unless something that actually knows the reason
 # said so first. Whoever knows the reason calls mark_shutdown_reason():
 # TrayIcon._quit() with "tray", main.py's sys.excepthook with
@@ -100,24 +140,24 @@ def get_shutdown_reason() -> str | None:
 
 # ---------------------------------------------------------------------------
 # Watchdog health marker (2026-09-05) — "nobody watches the watchdog" fix.
-# howl-watchdog.ps1's Update-AliveMarker touches this exact file on EVERY
+# fluentpill-watchdog.ps1's Update-AliveMarker touches this exact file on EVERY
 # pass of the scheduled task (every 5 min), whether or not it had to
-# relaunch Howl — a marker that only updates when something was wrong would
+# relaunch fluentpill — a marker that only updates when something was wrong would
 # be indistinguishable from a watchdog that stopped running entirely (a
 # disabled task, a broken wscript hop, etc. all report LastTaskResult 0
 # regardless). main.py's existing heartbeat QTimer checks this marker's age
 # on every tick (no new timer) via watchdog_marker_age_seconds() below.
 #
 # The path is duplicated (not imported), same reasoning as stopped_marker_path()
-# above: howl-watchdog.ps1 and install-watchdog-task.ps1 aren't Python, so
-# they hardcode "watchdog-alive" under howl_appdata_dir() themselves.
+# above: fluentpill-watchdog.ps1 and install-watchdog-task.ps1 aren't Python, so
+# they hardcode "watchdog-alive" under appdata_dir() themselves.
 # ---------------------------------------------------------------------------
 def watchdog_marker_path() -> Path:
-    """The file howl-watchdog.ps1 touches on every pass. Reading its mtime
-    is how Howl tells "the watchdog task isn't running at all" apart from
+    """The file fluentpill-watchdog.ps1 touches on every pass. Reading its mtime
+    is how fluentpill tells "the watchdog task isn't running at all" apart from
     "the watchdog ran and found nothing to do" — both look identical from
-    Howl's side unless something is watching this marker's age."""
-    return howl_appdata_dir() / "watchdog-alive"
+    fluentpill's side unless something is watching this marker's age."""
+    return appdata_dir() / "watchdog-alive"
 
 
 def watchdog_marker_age_seconds() -> float | None:
@@ -125,7 +165,7 @@ def watchdog_marker_age_seconds() -> float | None:
     the marker has never existed on this machine.
 
     None is deliberately NOT the same as "very old" — it means no watchdog
-    was ever installed, and main.py must stay silent in that case (Howl
+    was ever installed, and main.py must stay silent in that case (fluentpill
     works fine standalone; plenty of users won't have the watchdog task at
     all). Only an existing-but-aging marker should ever trigger a warning.
     Never raises."""

@@ -82,14 +82,14 @@ notepad .env.local
 Paste your keys into `.env.local` (see [Configuration](#configuration)), then start it:
 
 ```bat
-Howl.bat
+fluentpill.bat
 ```
 
-`Howl.bat` launches the app without a console window. To see the logs live, run `venv\Scripts\python.exe main.py` instead.
+`fluentpill.bat` launches the app without a console window. To see the logs live, run `venv\Scripts\python.exe main.py` instead.
 
-To start it with Windows, run `install-autostart.bat` once. `uninstall-autostart.bat` undoes it. `howl-stop.bat` stops it for good, and `install-watchdog.bat` adds the optional watchdog.
+To start it with Windows, run `install-autostart.bat` once. `uninstall-autostart.bat` undoes it. `fluentpill-stop.bat` stops it for good, and `install-watchdog.bat` adds the optional watchdog.
 
-The app is still called Howl inside the code, the logs and the data folder (`%LOCALAPPDATA%\Howl`). The name fluentpill is what you see on screen.
+Data and logs live in `%LOCALAPPDATA%\fluentpill`. If you used an older build, its `%LOCALAPPDATA%\Howl` folder is renamed on the first start.
 
 ## Configuration
 
@@ -124,7 +124,7 @@ fluentpill has no server of its own. Your audio and text go straight from your c
 Stored on your machine:
 
 - The history database, `transcriptions.db`, in the repository folder. It holds your dictations and your English corrections.
-- Recent audio files in `%LOCALAPPDATA%\Howl`, deleted after 24 hours by default. Turn it off with `SAVE_RECORDINGS=false`.
+- Recent audio files in `%LOCALAPPDATA%\fluentpill`, deleted after 24 hours by default. Turn it off with `SAVE_RECORDINGS=false`.
 - Your keys, in `.env.local`. Git ignores that file; keep it that way.
 
 Each provider has its own data policy. Read it before you dictate anything sensitive.

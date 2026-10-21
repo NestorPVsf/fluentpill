@@ -1,6 +1,6 @@
 """Keep the hotkey path responsive under CPU load (Windows only, never raises).
 
-Why: Howl is launched by a scheduled task whose default priority (7) starts it as
+Why: fluentpill is launched by a scheduled task whose default priority (7) starts it as
 BelowNormal. With the machine busy, the keyboard-hook thread and the Qt thread
 wait behind everything else, so Ctrl+Space opens late or not at all. Also, an idle
 process gets its working set trimmed, and the first press pays the page-in.

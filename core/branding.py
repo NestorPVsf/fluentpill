@@ -1,9 +1,12 @@
 r"""Brand names in one place.
 
-The app was called "Howl" and is now shown to the user as "fluentpill".
-Internal identifiers (%LOCALAPPDATA%\Howl, howl.log, mutex names, the
-watchdog, file and module names) keep the old name on purpose, so history,
-autostart and the watchdog keep working.
+The app was called "Howl" and is now "fluentpill" everywhere: visible name,
+data folder (%LOCALAPPDATA%\fluentpill), fluentpill.log, mutex, scheduled
+tasks and scripts. core/lifecycle.py migrates the old Howl folder once.
+
+"Howl" survives only as LEGACY_APP_NAME: a window title or process name that
+still says "Howl" (an old build still running during the switch, an old
+shortcut) must keep counting as our own app.
 
 Anything that decides "is this window/process my own app?" by name must go
 through is_own_app_name(), which knows both names, so renaming a visible

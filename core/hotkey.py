@@ -279,7 +279,7 @@ class HotkeyListener(QObject):
         except Exception:
             # NOTHING may escape this method. It runs on pynput's low-level
             # hook callback, and an exception there makes pynput call
-            # self.stop() — every hotkey dead until Howl restarts. False is
+            # self.stop() — every hotkey dead until fluentpill restarts. False is
             # the safe direction: shortcuts keep working. Deliberately bare:
             # even the logging inside fullscreen_app_active()'s own except
             # path can throw (full disk, dead handle).

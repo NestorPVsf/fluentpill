@@ -67,7 +67,7 @@ CLEANER_SYSTEM_PROMPT = CLEANER_SYSTEM_PROMPT_BASE + _build_tech_vocab_block()
 
 # Stable user identifier for OpenAI cache routing — keeps this app's prompts
 # pinned to the same cache shard across calls.
-_OPENAI_USER_ID = "howl-cleaner-v1"
+_OPENAI_USER_ID = "fluentpill-cleaner-v1"
 
 # Params each OpenAI model rejected with a 400 this session (e.g. gpt-5.6
 # rejects `temperature`). Remembered so the drop-and-retry round-trip is paid

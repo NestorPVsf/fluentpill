@@ -29,7 +29,7 @@ _MOD_NAMES = {"ctrl": MOD_CONTROL, "control": MOD_CONTROL, "alt": MOD_ALT,
 def parse_chord(spec: str):
     """"ctrl+alt+space" -> (modifiers, vk), or None if empty/unsupported.
 
-    Only chords ending in Space are supported (all Howl chords are Space-based).
+    Only chords ending in Space are supported (all fluentpill chords are Space-based).
     """
     parts = [p.strip() for p in (spec or "").lower().split("+") if p.strip()]
     if len(parts) < 2 or parts[-1] != "space":
@@ -58,7 +58,7 @@ class WinHotkeys:
         if not _WIN:
             self.error = "not windows"
             return False
-        self._thread = threading.Thread(target=self._run, name="howl-hotkey", daemon=True)
+        self._thread = threading.Thread(target=self._run, name="fluentpill-hotkey", daemon=True)
         self._thread.start()
         if not self._ready.wait(timeout):
             self.error = "register timed out"

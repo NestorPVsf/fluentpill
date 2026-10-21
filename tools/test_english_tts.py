@@ -13,8 +13,8 @@ import wave
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Cache goes to a throwaway folder, never to the real %LOCALAPPDATA%\Howl\tts.
-_TMP = tempfile.mkdtemp(prefix="howl-tts-test-")
+# Cache goes to a throwaway folder, never to the real %LOCALAPPDATA%\fluentpill\tts.
+_TMP = tempfile.mkdtemp(prefix="fluentpill-tts-test-")
 os.environ["LOCALAPPDATA"] = _TMP
 
 from PyQt6.QtCore import Qt  # noqa: E402
@@ -76,7 +76,7 @@ english_tts._post = fake_post
 # ---- cache: the second request for the same text does not hit the API
 p1 = english_tts.synthesize("keep doing that job")
 assert p1.is_file() and p1.suffix == ".wav" and p1.parent.name == "tts"
-assert p1.parent.parent.name == "Howl", p1
+assert p1.parent.parent.name == "fluentpill", p1
 assert len(calls) == 1
 p2 = english_tts.synthesize("keep doing that job")
 assert p2 == p1 and len(calls) == 1, "second request must come from the cache"

@@ -1,4 +1,4 @@
-"""recordings.py — Optional debug WAV saver for Howl dictations.
+"""recordings.py — Optional debug WAV saver for fluentpill dictations.
 
 Saves a copy of each recorded WAV to a per-OS directory so the user can review
 whether a missed word was caused by the microphone or by Whisper.  All functions
@@ -15,27 +15,25 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from core.lifecycle import appdata_dir
+
 
 def recordings_dir() -> Path:
     """Return (and create) the platform-appropriate recordings directory.
 
-    Windows : %LOCALAPPDATA%\\Howl\\recordings
-    Others  : ~/.config/Howl/recordings
+    Windows : %LOCALAPPDATA%\\fluentpill\\recordings
+    Others  : ~/.config/fluentpill/recordings
 
     Returns the directory Path, or a fallback temp path if creation fails.
     """
     try:
-        if sys.platform == "win32":
-            base = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
-        else:
-            base = Path.home() / ".config"
-        rec_dir = base / "Howl" / "recordings"
+        rec_dir = appdata_dir() / "recordings"
         rec_dir.mkdir(parents=True, exist_ok=True)
         return rec_dir
     except Exception as e:
         print(f"[recordings] Could not create recordings dir: {e}")
         # Fallback to a temp subdirectory so callers still get a Path object
-        fallback = Path(os.environ.get("TEMP", "/tmp")) / "Howl" / "recordings"
+        fallback = Path(os.environ.get("TEMP", "/tmp")) / "fluentpill" / "recordings"
         try:
             fallback.mkdir(parents=True, exist_ok=True)
         except Exception:

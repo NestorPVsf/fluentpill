@@ -1,20 +1,20 @@
 <#
 .SYNOPSIS
-    Howl watchdog — relaunches Howl if it died without the user asking it to.
+    fluentpill watchdog — relaunches fluentpill if it died without the user asking it to.
 
 .DESCRIPTION
-    Meant to run every 5 minutes via the "HowlWatchdog" scheduled task (see
-    install-watchdog.bat). Identifies Howl by the ExecutablePath of a
+    Meant to run every 5 minutes via the "fluentpillWatchdog" scheduled task (see
+    install-watchdog.bat). Identifies fluentpill by the ExecutablePath of a
     pythonw.exe process — the absolute, OS-resolved path of the pythonw.exe
     binary that lives in THIS repo's venv — never by matching "main.py" (or
     any other substring) against CommandLine.
 
     CommandLine is whatever string the caller used to launch the process:
-    Howl.bat runs `venv\Scripts\pythonw.exe main.py` with main.py RELATIVE,
+    fluentpill.bat runs `venv\Scripts\pythonw.exe main.py` with main.py RELATIVE,
     so a CommandLine match against this repo's *absolute* main.py path never
-    matched anything — Howl always looked dead to this script even while
+    matched anything — fluentpill always looked dead to this script even while
     running fine (measured 2026-09-05: 0 processes found against 2 real
-    ones). Matching "*main.py*" instead (as Howl.bat/howl-stop.bat used to)
+    ones). Matching "*main.py*" instead (as fluentpill.bat/fluentpill-stop.bat used to)
     goes wrong the other way: the machine runs several unrelated Python
     projects, so it can also match (and, for the stop scripts, kill) someone
     else's main.py. ExecutablePath has neither problem — Windows always
@@ -35,20 +35,20 @@
     disappear within ~2s, not left orphaned). If a future Python version
     changes that and a launcher outlives its child, the failure mode is
     still safe: this script would attempt a redundant relaunch, which harmlessly
-    no-ops against Local\HowlSingleInstance (main.py's single-instance mutex).
+    no-ops against Local\FluentpillSingleInstance (main.py's single-instance mutex).
 
     Does nothing if:
-      - Howl is already running, or
-      - the user stopped Howl on purpose — the stopped-by-user marker is
-        present (written by howl-stop.bat and the tray "Salir" action;
-        cleared by Howl.bat and by a normal main.py start, including the
+      - fluentpill is already running, or
+      - the user stopped fluentpill on purpose — the stopped-by-user marker is
+        present (written by fluentpill-stop.bat and the tray "Salir" action;
+        cleared by fluentpill.bat and by a normal main.py start, including the
         Windows autostart path). Resurrecting an intentional stop every 5
-        minutes would make Howl impossible to actually turn off.
+        minutes would make fluentpill impossible to actually turn off.
 
-    Otherwise it relaunches Howl headless — same command Howl.bat uses — and
-    appends a timestamped [watchdog] line to howl.log, so a morning-after
-    read of the log shows not just "Howl died" (silence after a heartbeat,
-    see main.py) but "Howl died and was relaunched at HH:MM".
+    Otherwise it relaunches fluentpill headless — same command fluentpill.bat uses — and
+    appends a timestamped [watchdog] line to fluentpill.log, so a morning-after
+    read of the log shows not just "fluentpill died" (silence after a heartbeat,
+    see main.py) but "fluentpill died and was relaunched at HH:MM".
 
     "Who watches the watchdog" (2026-09-05): a scheduled task can report
     LastTaskResult 0 while the wscript/powershell hop underneath it never
@@ -56,12 +56,12 @@
     script. And a marker this script only wrote when it found a problem
     would be indistinguishable from a watchdog that stopped running
     entirely. So Update-AliveMarker below touches
-    %LOCALAPPDATA%\Howl\watchdog-alive on EVERY pass — the stopped-by-user
+    %LOCALAPPDATA%\fluentpill\watchdog-alive on EVERY pass — the stopped-by-user
     early exit, the nothing-to-do early exit, a successful relaunch, and
     even the catch block's unexpected-error path — from a `finally` block
     so it fires no matter which of those the try block hits. main.py's
     heartbeat timer reads that marker's age and warns (tray tooltip + one
-    howl.log line per episode) once it goes stale; see core/lifecycle.py's
+    fluentpill.log line per episode) once it goes stale; see core/lifecycle.py's
     watchdog_marker_age_seconds(). Verified empirically under
     real powershell.exe 5.1 (not pwsh) that a `finally` attached to a
     try/catch DOES run after an `exit` statement inside the try block, and
@@ -74,34 +74,40 @@ $repoRoot = $PSScriptRoot
 $mainPyPath = Join-Path $repoRoot 'main.py'
 $pythonwExe = Join-Path $repoRoot 'venv\Scripts\pythonw.exe'
 
+# Data folder: fluentpill. If it does not exist yet but the pre-rename Howl
+# folder does (app not started since the rename), use the old one: creating
+# an empty fluentpill folder here would make main.py skip its one-time
+# Howl -> fluentpill migration (both folders existing = nothing is touched).
 $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
-$howlDir = Join-Path $localAppData 'Howl'
-$stopMarker = Join-Path $howlDir 'stopped-by-user'
-$logPath = Join-Path $howlDir 'howl.log'
-$aliveMarker = Join-Path $howlDir 'watchdog-alive'
+$appDir = Join-Path $localAppData 'fluentpill'
+$legacyDir = Join-Path $localAppData 'Howl'
+if (-not (Test-Path $appDir) -and (Test-Path $legacyDir)) { $appDir = $legacyDir }
+$stopMarker = Join-Path $appDir 'stopped-by-user'
+$logPath = Join-Path $appDir 'fluentpill.log'
+$aliveMarker = Join-Path $appDir 'watchdog-alive'
 
 function Write-WatchdogLog {
     param([string]$Message)
     try {
-        if (-not (Test-Path $howlDir)) {
-            New-Item -ItemType Directory -Path $howlDir -Force | Out-Null
+        if (-not (Test-Path $appDir)) {
+            New-Item -ItemType Directory -Path $appDir -Force | Out-Null
         }
         $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
         $line = "[watchdog] $timestamp $Message"
         # Explicit no-BOM UTF8 — Add-Content's default encoding differs
-        # between Windows PowerShell and pwsh, and howl.log (written by
+        # between Windows PowerShell and pwsh, and fluentpill.log (written by
         # Python with encoding="utf-8") has no BOM. This keeps every line in
         # the file consistent regardless of which PowerShell runs the task.
         #
         # Opened via FileStream with FileShare.ReadWrite rather than the
         # [System.IO.File]::AppendAllText convenience method on purpose:
-        # AppendAllText requests exclusive access, and Howl's own process
-        # holds howl.log open for its entire life (main.py's _setup_logging,
+        # AppendAllText requests exclusive access, and fluentpill's own process
+        # holds fluentpill.log open for its entire life (main.py's _setup_logging,
         # line-buffered "a" mode) — confirmed empirically (2026-09-05) that
-        # AppendAllText throws "used by another process" the whole time Howl
+        # AppendAllText throws "used by another process" the whole time fluentpill
         # is alive, and the catch below used to swallow that silently. That
         # made this exact function look like it "did nothing" whenever the
-        # watchdog ran while Howl (unbeknownst to the old detector) was
+        # watchdog ran while fluentpill (unbeknownst to the old detector) was
         # actually still alive — the relaunch attempt underneath still fired
         # and hit the single-instance mutex, but this confirmation line
         # never made it to the log, making a real event look like a no-op.
@@ -131,13 +137,13 @@ function Update-AliveMarker {
     #
     # Same no-BOM-UTF8 + FileShare.ReadWrite approach as Write-WatchdogLog
     # above, though there is no known reader holding this file open the way
-    # Howl holds howl.log open -- ReadWrite here is just cheap insurance in
+    # fluentpill holds fluentpill.log open -- ReadWrite here is just cheap insurance in
     # case main.py's read (core.lifecycle.watchdog_marker_age_seconds, a
     # plain stat() call) or another watchdog run overlaps in the same
     # instant.
     try {
-        if (-not (Test-Path $howlDir)) {
-            New-Item -ItemType Directory -Path $howlDir -Force | Out-Null
+        if (-not (Test-Path $appDir)) {
+            New-Item -ItemType Directory -Path $appDir -Force | Out-Null
         }
         $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
         $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -157,7 +163,7 @@ function Update-AliveMarker {
 
 try {
     if (Test-Path $stopMarker) {
-        # User stopped Howl on purpose — do not resurrect it.
+        # User stopped fluentpill on purpose — do not resurrect it.
         exit 0
     }
 
@@ -176,9 +182,9 @@ try {
         exit 1
     }
 
-    # Same launch as Howl.bat: venv's pythonw.exe, headless, no console.
+    # Same launch as fluentpill.bat: venv's pythonw.exe, headless, no console.
     Start-Process -FilePath $pythonwExe -ArgumentList "`"$mainPyPath`"" -WorkingDirectory $repoRoot -WindowStyle Hidden
-    Write-WatchdogLog "Howl no estaba vivo - relanzado"
+    Write-WatchdogLog "fluentpill no estaba vivo - relanzado"
 } catch {
     Write-WatchdogLog "ERROR inesperado en el watchdog: $($_.Exception.Message)"
     exit 1

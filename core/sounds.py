@@ -1,12 +1,12 @@
 """Audio cues for recording start/stop.
 
 Motivation (2026-08-24): the floating pill can end up hidden/covered by
-another window, and howl.log showed two dictation sessions of 718s and 720s
+another window, and fluentpill.log showed two dictation sessions of 718s and 720s
 that recorded the whole time without the user noticing. A sound is the one
 piece of feedback that doesn't depend on looking at the screen.
 
 Windows implementation: two short WAV tones generated once in memory and
-cached under %LOCALAPPDATA%\\Howl\\sounds\\, played with winsound.PlaySound
+cached under %LOCALAPPDATA%\\fluentpill\\sounds\\, played with winsound.PlaySound
 using SND_ASYNC. winsound.Beep() is deliberately NOT used — it BLOCKS the
 calling thread for the full tone duration, and these calls happen on the UI
 thread right as recording starts/stops.
@@ -26,6 +26,7 @@ import wave
 from pathlib import Path
 
 import config
+from core.lifecycle import appdata_dir
 
 # Internal switch (in addition to config.SOUND_CUES_ENABLED) — flip to False
 # here to silence cues unconditionally regardless of env/config, e.g. for
@@ -49,11 +50,7 @@ def _sounds_dir() -> Path:
     global _sounds_dir_cache
     if _sounds_dir_cache is not None:
         return _sounds_dir_cache
-    if sys.platform == "win32":
-        base = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
-    else:
-        base = Path.home() / ".config"
-    d = base / "Howl" / "sounds"
+    d = appdata_dir() / "sounds"
     d.mkdir(parents=True, exist_ok=True)
     _sounds_dir_cache = d
     return d

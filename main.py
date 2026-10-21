@@ -1,4 +1,4 @@
-"""Howl - Voice-to-text desktop tool powered by Groq Whisper."""
+"""fluentpill - Voice-to-text desktop tool powered by Groq Whisper."""
 
 import os
 import sys
@@ -9,6 +9,8 @@ import traceback
 import atexit
 from datetime import datetime, timedelta
 from pathlib import Path
+
+from core.lifecycle import appdata_dir, migration_note
 
 
 # ---------------------------------------------------------------------------
@@ -27,17 +29,12 @@ def _setup_logging() -> Path | None:
     if has_console:
         return None  # interactive run — leave streams alone
 
-    # Choose a per-OS sensible spot
-    if sys.platform == "win32":
-        base = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
-    else:
-        base = Path.home() / ".config"
-    log_dir = base / "Howl"
+    log_dir = appdata_dir()  # runs the one-time Howl -> fluentpill folder migration
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
     except OSError:
         return None
-    log_path = log_dir / "howl.log"
+    log_path = log_dir / "fluentpill.log"
 
     # Truncate if it grew over 5 MB so we don't accumulate forever
     try:
@@ -63,9 +60,9 @@ faulthandler.enable()
 
 def _ts() -> str:
     """Timestamp for the log's lifecycle lines (startup/heartbeat/shutdown).
-    Every other line in howl.log has none, by design (_setup_logging above
+    Every other line in fluentpill.log has none, by design (_setup_logging above
     is deliberately not touched) — these three are the exception, just
-    enough to date "when did Howl die" without rewriting the logging setup.
+    enough to date "when did fluentpill die" without rewriting the logging setup.
     """
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -88,7 +85,7 @@ def _global_exception_handler(exc_type, exc_value, exc_tb):
     except Exception:
         pass
     print("=" * 60)
-    print("HOWL CRASH — unhandled exception:")
+    print("FLUENTPILL CRASH — unhandled exception:")
     traceback.print_exception(exc_type, exc_value, exc_tb)
     print("=" * 60)
 
@@ -104,7 +101,7 @@ from ui.tray_icon import TrayIcon
 # They will be imported inside _deferred_setup
 
 
-class HowlApp(QObject):
+class FluentpillApp(QObject):
     """Main application controller. Wires hotkey -> recorder -> transcriber -> clipboard."""
 
     # Signal to handle transcription result on the main thread.
@@ -189,20 +186,20 @@ class HowlApp(QObject):
 
     def _check_watchdog_health(self):
         """Piggybacks on the heartbeat timer above (no new QTimer, per the
-        brief) to notice a dead watchdog. howl-watchdog.ps1 touches
+        brief) to notice a dead watchdog. fluentpill-watchdog.ps1 touches
         core.lifecycle's watchdog-alive marker on EVERY pass, whether or
-        not it had to relaunch Howl — a monitor that only writes when it
+        not it had to relaunch fluentpill — a monitor that only writes when it
         finds a problem is indistinguishable from a monitor that stopped
         running at all, which is exactly the failure mode this exists to
         catch (a scheduled task can report LastTaskResult 0 while the
         wscript/powershell hop underneath it never actually ran).
 
         None age (marker has never existed) means no watchdog is installed
-        on this machine — stay silent, never warn, since Howl works fine
+        on this machine — stay silent, never warn, since fluentpill works fine
         standalone. Only an existing-but-aging marker crosses into a
         warning, and the [watchdog-stale] log line fires exactly once per
         stale episode (guarded by self._watchdog_stale) rather than once
-        per heartbeat tick. The tray tooltip (Howl's permanent on-screen
+        per heartbeat tick. The tray tooltip (fluentpill's permanent on-screen
         presence) is updated on every tick regardless, so
         it also clears itself the moment the watchdog catches up.
         """
@@ -296,7 +293,7 @@ class HowlApp(QObject):
 
         self.pill.set_state(PillWidget.STATE_IDLE)
         print(f"[startup] {_ts()} pid={os.getpid()}")
-        print("Howl running. Ctrl+Shift (hold) o Ctrl+Space (hands-free). Ctrl+C to quit.")
+        print("fluentpill running. Ctrl+Shift (hold) o Ctrl+Space (hands-free). Ctrl+C to quit.")
 
     @pyqtSlot()
     def _on_hotkey_pressed(self):
@@ -774,7 +771,7 @@ class HowlApp(QObject):
 
 
 def _acquire_single_instance_lock() -> bool:
-    """One Howl at a time — a second instance would double-register the global
+    """One fluentpill at a time — a second instance would double-register the global
     hotkeys and produce double pastes. Windows named mutex: auto-released by
     the OS on process death, so there is no stale-lock risk. The handle stays
     open for the process lifetime on purpose. Non-Windows: no lock (dev-only
@@ -783,7 +780,7 @@ def _acquire_single_instance_lock() -> bool:
         return True
     import ctypes
     ERROR_ALREADY_EXISTS = 183
-    ctypes.windll.kernel32.CreateMutexW(None, False, "Local\\HowlSingleInstance")
+    ctypes.windll.kernel32.CreateMutexW(None, False, "Local\\FluentpillSingleInstance")
     return ctypes.windll.kernel32.GetLastError() != ERROR_ALREADY_EXISTS
 
 
@@ -791,7 +788,7 @@ def _on_shutdown():
     """atexit hook — fires on any ORDERLY interpreter shutdown: tray "Salir"
     -> QApplication.quit() -> app.exec() returns -> sys.exit() below, a
     plain Ctrl+C in dev mode, AND an unhandled exception (sys.excepthook
-    prints "HOWL CRASH" and then Python's normal shutdown sequence — which
+    prints "FLUENTPILL CRASH" and then Python's normal shutdown sequence — which
     still runs atexit — continues). It does NOT fire on an external
     TerminateProcess (Stop-Process -Force, Task Manager, a hard crash) —
     that one is not interceptable, and a log that goes quiet after a
@@ -804,7 +801,7 @@ def _on_shutdown():
     by whoever called core.lifecycle.mark_shutdown_reason() on the way out:
     TrayIcon._quit() ("tray") or _global_exception_handler() above
     ("unhandled-exception"). No call means no one confirmed a clean
-    stop — reported as "unknown", not "clean". See howl-watchdog.ps1
+    stop — reported as "unknown", not "clean". See fluentpill-watchdog.ps1
     for how this gets used.
 
     Defensive because atexit runs during interpreter teardown, when
@@ -822,17 +819,19 @@ def _on_shutdown():
 
 def main():
     if not _acquire_single_instance_lock():
-        print("Howl ya está corriendo — saliendo. Usa Howl.bat para reiniciar (mata la instancia previa).")
+        print("fluentpill ya está corriendo — saliendo. Usa fluentpill.bat para reiniciar (mata la instancia previa).")
         return
 
-    # Fresh start (manual, Howl.bat, or Windows autostart) means the user
-    # wants Howl running again — clear any "stopped on purpose" marker so
-    # howl-watchdog.ps1 doesn't mistake this session for one it should leave
-    # alone. Howl.bat also deletes this file directly; doing it here too is
+    # Fresh start (manual, fluentpill.bat, or Windows autostart) means the user
+    # wants fluentpill running again — clear any "stopped on purpose" marker so
+    # fluentpill-watchdog.ps1 doesn't mistake this session for one it should leave
+    # alone. fluentpill.bat also deletes this file directly; doing it here too is
     # what makes the Windows autostart path (which launches main.py
-    # directly, bypassing Howl.bat) clean up after itself as well.
+    # directly, bypassing fluentpill.bat) clean up after itself as well.
     from core.lifecycle import clear_stopped_marker
     clear_stopped_marker()
+    if migration_note():
+        print(migration_note())  # first log line after a Howl -> fluentpill folder rename
 
     atexit.register(_on_shutdown)
 
@@ -847,14 +846,14 @@ def main():
     # PyQt6 has HiDPI scaling always-on by default; AA_EnableHighDpiScaling
     # was removed from the API. Nothing to set here.
     app = QApplication(sys.argv)
-    app.setApplicationName("Howl")
+    app.setApplicationName("fluentpill")
     app.setQuitOnLastWindowClosed(False)
 
     # Allow Ctrl+C to kill the app
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-    howl = HowlApp()
-    howl.start()
+    fluentpill = FluentpillApp()
+    fluentpill.start()
     
     sys.exit(app.exec())
 

@@ -383,7 +383,7 @@ def fullscreen_app_active(exclude_hwnd: "int | None" = None) -> bool:
     is valid for both. Even if the pill somehow became the foreground window,
     it is 52px tall and can never satisfy the "covers its monitor within 2px"
     test, so the verdict is identical with or without the exclusion. Revisit
-    this if Howl ever gives a LARGE window's HWND to this function.
+    this if fluentpill ever gives a LARGE window's HWND to this function.
     """
     global _fullscreen_cache_time, _fullscreen_cache_value
 

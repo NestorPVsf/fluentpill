@@ -88,7 +88,7 @@ class AudioRecorder:
         *after* stop() — frames are preserved until the next start().
 
         skip_initial_seconds: ignore this many leading seconds before
-        computing the peak. Exists because Howl's own start-of-recording beep
+        computing the peak. Exists because fluentpill's own start-of-recording beep
         (core/sounds.py) is picked up by the mic — measured on the real
         hardware (Microphone Array): ambient peak_rms=421, peak_rms=756
         during the ~50ms tone (~1.8x ambient). Without this, a truly silent

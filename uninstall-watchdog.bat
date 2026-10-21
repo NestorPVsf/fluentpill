@@ -1,5 +1,5 @@
 @echo off
-:: Remove the Howl watchdog scheduled task created by install-watchdog.bat.
+:: Remove the fluentpill watchdog scheduled task created by install-watchdog.bat.
 ::
 :: Delegates to uninstall-watchdog-task.ps1 (Unregister-ScheduledTask) rather
 :: than calling `schtasks /Delete` directly from this .bat. A .bat that

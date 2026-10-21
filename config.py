@@ -50,7 +50,7 @@ BLOCK_SIZE = 1024
 MAX_RECORDING_SECONDS = float(os.getenv("MAX_RECORDING_SECONDS", "720"))
 
 # Sound cues: short beep on recording start/stop. Added 2026-08-24 because the
-# pill kept ending up buried behind other windows — howl.log showed two
+# pill kept ending up buried behind other windows — fluentpill.log showed two
 # dictation sessions of 718s and 720s recording the whole time unnoticed, and a
 # sound was the only feedback that didn't depend on seeing the pill.
 # OFF by default since the same day: once the pill reliably sits on top while
@@ -263,7 +263,7 @@ ENGLISH_EXPLAIN_ENABLED = os.getenv("ENGLISH_EXPLAIN_ENABLED", "true").lower() =
 # ui/refine_widget.py, ui/preview_widget.py, core/refiner.py and the
 # refine_requested/refinement_done/refinement_error/choice_made signal
 # wiring in main.py all still work the moment this is flipped back to true
-# — no code was removed to turn this off, see main.py's HowlApp.__init__.
+# — no code was removed to turn this off, see main.py's FluentpillApp.__init__.
 REFINE_ENABLED = os.getenv("REFINE_ENABLED", "false").lower() == "true"
 
 # Paste queue (2026-08-24): golden rule is "never paste while the user is
@@ -278,7 +278,7 @@ REFINE_ENABLED = os.getenv("REFINE_ENABLED", "false").lower() == "true"
 MAX_PENDING_PASTES = int(os.getenv("MAX_PENDING_PASTES", "10"))
 
 # Game mute (2026-09-05): Ctrl and Shift are pressed constantly in RTS games
-# (Ctrl+1..9 are control groups, Shift queues orders), so Howl kept starting
+# (Ctrl+1..9 are control groups, Shift queues orders), so fluentpill kept starting
 # recordings while playing — 8478 app-context captures with StarCraft in the
 # foreground in one log. While a fullscreen app is focused, the keyboard
 # shortcuts stop responding; the tray click stays live as a deliberate escape
@@ -344,11 +344,11 @@ SILENCE_GATE_SKIP_INITIAL_SECONDS = float(os.getenv("SILENCE_GATE_SKIP_INITIAL_S
 SILENCE_TRIM_ENABLED = os.getenv("SILENCE_TRIM_ENABLED", "true").lower() == "true"
 CHUNK_SECONDS = float(os.getenv("CHUNK_SECONDS", "60"))
 
-# Lifecycle log lines (2026-09-05): howl.log has no timestamps on any line by
+# Lifecycle log lines (2026-09-05): fluentpill.log has no timestamps on any line by
 # default (see main.py's _setup_logging, left untouched on purpose). These are
 # the deliberate exception — a startup line, a heartbeat every N seconds, and
-# a process-exit line via atexit — just enough to answer "when did Howl die,
-# and was it a confirmed stop or an external kill" (see howl-watchdog.ps1,
+# a process-exit line via atexit — just enough to answer "when did fluentpill die,
+# and was it a confirmed stop or an external kill" (see fluentpill-watchdog.ps1,
 # which reads the same log for forensics). ~8 KB/day at the default interval,
 # negligible next to the 5 MB truncation _setup_logging already does.
 def _validate_heartbeat_interval(raw: str) -> float:
@@ -371,12 +371,12 @@ def _validate_heartbeat_interval(raw: str) -> float:
 HEARTBEAT_INTERVAL_SECONDS = _validate_heartbeat_interval(os.getenv("HEARTBEAT_INTERVAL_SECONDS", "300"))
 
 # Watchdog health check (2026-09-05) — "nobody watches the watchdog" fix.
-# howl-watchdog.ps1 touches %LOCALAPPDATA%\Howl\watchdog-alive on EVERY
-# pass (not just when it relaunches Howl); the heartbeat timer above checks
-# that marker's age each tick and warns (tray tooltip + one howl.log line
+# fluentpill-watchdog.ps1 touches %LOCALAPPDATA%\fluentpill\watchdog-alive on EVERY
+# pass (not just when it relaunches fluentpill); the heartbeat timer above checks
+# that marker's age each tick and warns (tray tooltip + one fluentpill.log line
 # per episode) once it's older than this many seconds. A marker that has
 # NEVER existed means no watchdog task is installed — silence, not a
-# warning, since Howl works fine standalone.
+# warning, since fluentpill works fine standalone.
 WATCHDOG_STALE_SECONDS = float(os.getenv("WATCHDOG_STALE_SECONDS", str(15 * 60)))
 
 # Recording debug saves — optional feature to persist WAV files for diagnosis.

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Removes the "HowlWatchdog" scheduled task. Called by
+    Removes the "fluentpillWatchdog" scheduled task. Called by
     uninstall-watchdog.bat -- not meant to be run standalone, though it is
     safe to do so.
 
@@ -32,25 +32,31 @@
 #>
 
 $ErrorActionPreference = 'Stop'
-$taskName = 'HowlWatchdog'
+$taskName = 'fluentpillWatchdog'
 
 $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
-$aliveMarker = Join-Path (Join-Path $localAppData 'Howl') 'watchdog-alive'
+$aliveMarkers = @(
+    (Join-Path (Join-Path $localAppData 'fluentpill') 'watchdog-alive'),
+    (Join-Path (Join-Path $localAppData 'Howl') 'watchdog-alive')   # pre-rename folder
+)
+
+# The pre-rename task goes too (no error if it was never there).
+Unregister-ScheduledTask -TaskName 'HowlWatchdog' -Confirm:$false -ErrorAction SilentlyContinue
 
 $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
 if (-not $task) {
-    Write-Output "El watchdog de Howl no estaba instalado."
+    Write-Output "El watchdog de fluentpill no estaba instalado."
     # Still clean up a leftover marker from a previous install, if any --
     # see the header comment above for why a stale marker with no task
     # behind it would be a false-warning trap.
-    Remove-Item -Path $aliveMarker -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path $aliveMarkers -Force -ErrorAction SilentlyContinue
     exit 0
 }
 
 try {
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
 } catch {
-    Write-Output "ERROR: no se pudo desinstalar el watchdog de Howl: $($_.Exception.Message)"
+    Write-Output "ERROR: no se pudo desinstalar el watchdog de fluentpill: $($_.Exception.Message)"
     exit 1
 }
 
@@ -60,7 +66,7 @@ if ($stillThere) {
     exit 1
 }
 
-Remove-Item -Path $aliveMarker -Force -ErrorAction SilentlyContinue
+Remove-Item -Path $aliveMarkers -Force -ErrorAction SilentlyContinue
 
-Write-Output "Watchdog de Howl desinstalado."
+Write-Output "Watchdog de fluentpill desinstalado."
 exit 0

@@ -262,7 +262,7 @@ def target_is_terminal() -> bool:
     """True when this dictation was pasted into a terminal/console. NEVER raises.
 
     Prefers the snapshot taken at record stop (that IS the app that received the
-    paste; the foreground may since have moved to Howl's own toast). Falls back
+    paste; the foreground may since have moved to fluentpill's own toast). Falls back
     to a live foreground probe so this stays correct with APP_CONTEXT_ENABLED
     off — that flag governs what is sent to the cleaner LLM, and must not
     silently re-enable a Ctrl+Z that suspends the user's shell session. The

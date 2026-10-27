@@ -144,6 +144,17 @@ Replace the file name with any other `tools\test_*.py`.
 
 fluentpill is forked from [SFlow](https://github.com/daniel-carreon/sflow) by [Daniel Carreón](https://github.com/daniel-carreon), released under the MIT license. The Windows version and the English mode are by [Néstor Martínez](https://github.com/NestorPVsf).
 
+## Work with me
+
+I build AI systems that run in production — RAG pipelines, agent
+orchestration, workflow automation. This repo is open so you can see how I
+work. If you want to adapt it to your stack, go deeper than the code, or
+build something of your own, get in touch:
+
+- Portfolio: [nestormartinez.dev](https://www.nestormartinez.dev)
+- Email: info@podervsfuerza.com
+- LinkedIn: [Nestor Martinez](https://www.linkedin.com/in/nestor-martinez-batista-pvsf/)
+
 ## License
 
 MIT. See [LICENSE](LICENSE). It keeps the original copyright notice from SFlow, as the license requires.
